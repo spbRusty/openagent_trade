@@ -1,0 +1,1 @@
+"""Данные: raw → normalized → validated → features (ТЗ §7)."""
