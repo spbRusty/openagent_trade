@@ -1,0 +1,16 @@
+[Unit]
+Description=OpenAgent Trade realtime monitor (paper-only)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=vlad
+WorkingDirectory=/home/vlad/Документы/openagent_trade
+ExecStart=/home/vlad/Документы/openagent_trade/.venv/bin/python -m infrastructure.realtime.monitor
+Restart=always
+RestartSec=10
+Environment=PATH=/home/vlad/.opencode/bin:/usr/local/bin:/usr/bin:/bin
+
+[Install]
+WantedBy=multi-user.target
