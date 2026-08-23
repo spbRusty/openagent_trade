@@ -1,0 +1,17 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+logs/
+*.parquet
+data/raw/1m/
+.idea/
+# runtime state & big data
+data/normalized/
+data/paper/
+data/__pycache__/
+memory/*.db
+*.log
+research/reports/*.html
+.omo/
+data/external/
