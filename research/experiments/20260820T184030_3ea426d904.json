@@ -1,0 +1,106 @@
+{
+  "experiment_id": "20260820T184030_3ea426d904",
+  "recorded_at": "2026-08-20T18:40:30+00:00",
+  "code_version": "dev",
+  "pipeline": "hypotheses",
+  "params": {
+    "periods": {
+      "discovery": [
+        "2020-01-01",
+        "2024-12-31"
+      ],
+      "validation": [
+        "2025-01-01",
+        "2025-12-31"
+      ],
+      "oos": [
+        "2026-01-01",
+        "2026-12-31"
+      ]
+    },
+    "W_grid": [
+      3,
+      5,
+      10,
+      20
+    ],
+    "H_grid": [
+      5,
+      10,
+      20
+    ],
+    "min_t": 2.0
+  },
+  "result": "NO_CANDIDATE",
+  "best": {
+    "id": "H3",
+    "name": "движение+объём→momentum",
+    "strategy": "momentum",
+    "W": 10,
+    "H": 10,
+    "n": 7365,
+    "t": 1.6969417670837044,
+    "ev": 4.034364949634427,
+    "n_months": 57,
+    "pos_months": 28
+  },
+  "diagnostic": {
+    "name": "движение+объём→momentum",
+    "W": 10,
+    "H": 10,
+    "overlap_t": 1.6115095450559427,
+    "overlap_ev": 2.950413238620634,
+    "n_months": 77,
+    "pos_months": 36,
+    "bootstrap_p": 0.0868,
+    "bootstrap_obs": 2.950413238620634,
+    "costs": {
+      "taker_0.15%": {
+        "n": 12182,
+        "ev": 0.01864897548627391,
+        "t": 7.738919108647035,
+        "winrate": 0.4867837793465769
+      },
+      "maker_0.08%": {
+        "n": 12182,
+        "ev": 0.01934897548627391,
+        "t": 8.02940387978313,
+        "winrate": 0.48891807584961416
+      }
+    },
+    "gate_passed": false,
+    "gate_fail_reason": "overlap_adjusted",
+    "gate_results": [
+      [
+        "market_neutral",
+        true,
+        "EV_net=+0.01336 t=5.46 n=11899"
+      ],
+      [
+        "cost_0.10%",
+        true,
+        "EV_net=+0.01915 t=7.95"
+      ],
+      [
+        "cost_0.15%",
+        true,
+        "EV_net=+0.01865 t=7.74"
+      ],
+      [
+        "cost_0.20%",
+        true,
+        "EV_net=+0.01815 t=7.53"
+      ],
+      [
+        "cost_0.30%",
+        true,
+        "EV_net=+0.01715 t=7.12"
+      ],
+      [
+        "overlap_adjusted",
+        false,
+        "месяцев=77 EV=+2.95041 t=1.61 плюс-месяцев=36"
+      ]
+    ]
+  }
+}
