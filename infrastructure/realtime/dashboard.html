@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<link rel="icon" href="data:,">
+<title>Scanner Monitor</title>
+<style>
+:root{--bg:#0d1117;--panel:#161b22;--line:#21262d;--txt:#c9d1d9;--mut:#8b949e;
+ --grn:#00ff88;--red:#ff4466;--yel:#ffd54d}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--txt);font:13px/1.45 system-ui,sans-serif;height:100vh;
+ display:flex;flex-direction:column;overflow:hidden}
+header{display:flex;gap:1.2rem;align-items:center;background:var(--panel);
+ border-bottom:1px solid var(--line);padding:.45rem .8rem;flex-wrap:wrap}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--red);display:inline-block;margin-right:.35rem}
+.dot.live{background:var(--grn);box-shadow:0 0 6px var(--grn)}
+.dot.rec{background:var(--yel)}
+.stat b{font-variant-numeric:tabular-nums}
+.stat span{color:var(--mut);margin-right:.3rem}
+#filters{display:flex;gap:.6rem;align-items:center;background:var(--panel);
+ border-bottom:1px solid var(--line);padding:.4rem .8rem;color:var(--mut)}
+select,input{background:#0d1117;color:var(--txt);border:1px solid var(--line);
+ border-radius:4px;padding:.15rem .4rem;font:inherit}
+main{flex:1;display:grid;grid-template-columns:430px 1fr 340px;min-height:0}
+#research{overflow:auto;border-left:1px solid var(--line);background:var(--panel);font-size:12px;padding:.5rem .7rem}
+#research h4{margin:.4rem 0 .3rem;color:var(--mut);font-size:11px;text-transform:uppercase;letter-spacing:.05em}
+#research .h{display:flex;justify-content:space-between;gap:.5rem;padding:.14rem 0;border-bottom:1px dashed var(--line)}
+#research .fail{color:var(--red)}#research .ok{color:var(--grn)}
+#research .idea{color:var(--mut);font-size:11px;line-height:1.35;margin:.1rem 0 .3rem}
+#tablewrap{overflow:auto;border-right:1px solid var(--line)}
+#trades{overflow:auto;border-right:1px solid var(--line);background:var(--panel);font-size:12px}
+#trades h4{padding:.35rem .8rem;color:var(--mut);font-size:11px;text-transform:uppercase;letter-spacing:.05em}
+#trades td{padding:.2rem .8rem;border-bottom:1px solid var(--line)}
+.win{color:var(--grn)}.lose{color:var(--red)}
+table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+th{position:sticky;top:0;background:var(--panel);color:var(--mut);text-align:left;
+ font-weight:normal;font-size:11px;text-transform:uppercase;padding:.3rem .6rem;border-bottom:1px solid var(--line)}
+td{padding:.22rem .6rem;border-bottom:1px solid var(--line);cursor:pointer;white-space:nowrap}
+tr:hover td{background:#1c2333}
+tr.crit td:first-child{box-shadow:inset 3px 0 0 var(--red)}
+.buy{color:var(--grn)}.sell{color:var(--red)}
+.mut{color:var(--mut)}
+</style>
+</head>
+<body>
+<header>
+ <span class="stat"><span class="dot" id="dot"></span><b id="conn">OFFLINE</b></span>
+ <span class="stat"><span id="nsym">–</span><span>символов</span></span>
+ <span class="stat"><b id="c5">0</b><span>за 5 мин</span></span>
+ <span class="stat"><b id="c30">0</b><span>за 30 мин</span></span>
+ <span class="stat"><b id="ccrit">0</b><span>сильных</span></span>
+ <span class="stat"><span>последнее:</span><b id="last">–</b></span>
+ <span class="stat"><span>uptime:</span><b id="up">–</b></span>
+ <span class="stat"><span>баланс $</span><b id="bal">–</b></span>
+ <span class="stat"><span>эквити $</span><b id="eq">–</b></span>
+ <span class="stat"><b id="ntr">0</b><span>сделок</span></span>
+ <span class="stat"><b id="wr">–</b><span>winrate</span></span>
+ <span class="stat" id="kill" style="display:none;color:var(--red)"><b>■ TRADING HALTED</b></span>
+</header>
+<div id="filters">
+ Символ <select id="fsym"><option value="">All</option></select>
+ Тип <select id="ftype"><option value="">All</option>
+  <option value="wall">Wall</option><option value="imbalance">Imbalance</option>
+  <option value="spread_expansion">Spread</option></select>
+ Мин. сила <input id="fstr" type="number" step="any" style="width:5rem" placeholder="×">
+ Окно <select id="fwin"><option value="0">всё</option><option value="300">5 мин</option>
+  <option value="1800">30 мин</option></select>
+</div>
+<main>
+ <section id="trades"><h4>Сделки (последние 30)</h4><table>
+  <thead><tr><th>Монета</th><th>Открытие</th><th>Закрытие</th><th>Ставка</th><th>PnL, $</th></tr></thead>
+  <tbody id="trows"></tbody>
+ </table></section>
+ <div id="tablewrap"><table>
+  <thead><tr><th>Time</th><th>Symbol</th><th>Type</th><th>Side</th>
+   <th>Strength</th><th>Price</th><th>Age</th></tr></thead>
+  <tbody id="rows"></tbody>
+ </table></div>
+ <aside id="research"></aside>
+</main>
+<script>
+"use strict";
+const $=id=>document.getElementById(id);
+const MAX_ROWS=500, MAX_EVENTS=3000;
+let events=[], retries=0, ws=null;
+
+const TYPE={wall:"WALL",imbalance:"IMBALANCE",spread_expansion:"SPREAD"};
+const fmtP=v=>v>=100?v.toFixed(1):v>=1?v.toFixed(4):v.toPrecision(4);
+const ago=ts=>{const s=Math.max(0,(Date.now()-Date.parse(ts))/1000|0);
+ return s<60?s+"s":s<3600?(s/60|0)+"m "+s%60+"s":(s/3600|0)+"h "+(s%3600/60|0)+"m"};
+
+function setStatus(st){$("dot").className="dot"+(st==="live"?" live":st==="rec"?" rec":"");
+ $("conn").textContent=st==="live"?"LIVE":st==="rec"?"RECONNECTING":"OFFLINE";}
+
+function connect(){
+ setStatus("rec");
+ try{ws=new WebSocket(`ws://${location.host}/ws`);}catch(e){return setTimeout(connect,3000);}
+ ws.onopen=()=>{setStatus("live");retries=0;};
+ ws.onmessage=e=>handle(JSON.parse(e.data));
+ ws.onclose=()=>{setStatus("rec");setTimeout(connect,Math.min(1000*++retries,5000));};
+ ws.onerror=()=>ws.close();
+}
+
+function handle(m){
+ if(m.msg==="snapshot"){
+  events=m.events.slice(-MAX_EVENTS);
+  $("nsym").textContent=m.symbols;
+  $("up").dataset.start=Date.now()-m.uptime_sec*1000;
+  if(m.account)renderAccount(m.account);
+  if(m.research)renderResearch(m.research);
+  renderAll();
+ }else if(m.msg==="event"){
+  events.push(m); if(events.length>MAX_EVENTS)events.shift();
+  addRow(m); recount(); addSymbol(m.symbol);
+  } else if(m.msg==="heartbeat"){if(m.account)renderAccount(m.account);
+  if(m.research)renderResearch(m.research);}
+}
+function renderAccount(a){
+ $("bal").textContent=a.balance.toFixed(2);
+ $("eq").textContent=a.equity.toFixed(2);
+ $("eq").style.color=a.day_pnl<0?"var(--red)":a.day_pnl>0?"var(--grn)":"";
+ $("ntr").textContent=a.trades;
+ $("wr").textContent=a.winrate==null?"–":a.winrate+"%";
+ $("kill").style.display=a.killed?"":"none";
+ const tm=s=>s?new Date(s).toLocaleTimeString("ru-RU"):"–";
+ $("trows").innerHTML=(a.recent||[]).slice().reverse().map(t=>
+  `<tr><td>${t.symbol}</td><td>${tm(t.opened)}</td><td>${tm(t.closed)}</td>`+
+  `<td>${t.bet==="long"?"▲ ЛОНГ":"▼ ШОРТ"}</td>`+
+  `<td class="${t.pnl<0?"lose":"win"}">${t.pnl<0?"−":"+"}${Math.abs(t.pnl).toFixed(4)}</td></tr>`).join("");
+}
+function renderResearch(r){
+ const rows=(r.checked||[]).map(c=>
+  `<div class="h"><span>${c.id} ${c.name}</span>`+
+  `<b class="${c.status==="FAILED"?"fail":"ok"}">${c.status}</b></div>`+
+  `<div class="idea">${c.verdict||""}</div>`).join("");
+ const plan=(r.planned||[]).map(p=>
+  `<div class="h"><span>${p.id} ${p.name}</span><b style="color:var(--yel)">план</b></div>`+
+  `<div class="idea">${p.idea}. <i>Зачем:</i> ${p.why.split(".")[0]}.</div>`).join("");
+ $("research").innerHTML=
+  `<h4>Проверено: ${r.checked?.length||0}, отсеяно: ${r.failed}, в работе: ${r.alive}</h4>${rows}`+
+  `<h4>Планируем ввести (${(r.planned||[]).length})</h4>${plan}`;
+}
+function addSymbol(s){const o=$("fsym");
+ if(![...o.options].some(x=>x.value===s))o.add(new Option(s,s));}
+
+function rowHtml(e){
+ const side=e.side==="buy"||e.side==="BUY";
+  return `<tr data-ts="${e.ts}" data-sym="${e.symbol}" data-type="${e.type}"
+   data-str="${+e.strength||0}" class="${e.severity==="critical"?"crit":""}">
+   <td>${new Date(e.ts).toLocaleTimeString("ru-RU")}</td><td>${e.symbol}</td>
+  <td>${TYPE[e.type]||e.type}</td><td class="${side?"buy":"sell"}">${side?"BUY":"SELL"}</td>
+  <td>×${(+e.strength).toFixed(1)}</td><td>${fmtP(+e.price)}</td><td class="age"></td></tr>`;
+}
+function visible(e){
+ const sym=$("fsym").value,typ=$("ftype").value,minS=+$("fstr").value||0,
+       win=+$("fwin").value||0;
+ return (!sym||e.symbol===sym)&&(!typ||e.type===typ)&&(+e.strength||0)>=minS&&
+        (!win||Date.now()-Date.parse(e.ts)<=win*1000);
+}
+function addRow(e){
+ const tb=$("rows");tb.insertAdjacentHTML("afterbegin",rowHtml(e));
+ while(tb.rows.length>MAX_ROWS)tb.deleteRow(-1);
+ applyTo(tb.rows[0]);
+}
+function renderAll(){
+ $("rows").innerHTML=[...events].reverse().map(rowHtml).join("");
+ [...$("rows").rows].forEach(applyTo);
+ const sel$=$("fsym");
+ [...new Set(events.map(e=>e.symbol))].sort().forEach(s=>{
+  if(![...sel$.options].some(o=>o.value===s))sel$.add(new Option(s,s));});
+ recount();
+}
+function applyTo(tr){tr.style.display=visible({symbol:tr.dataset.sym,type:tr.dataset.type,
+ strength:+tr.dataset.str,ts:tr.dataset.ts})?"":"none";}
+function applyFilters(){[...$("rows").rows].forEach(applyTo);}
+function recount(){
+ const now=Date.now(),inWin=s=>events.filter(e=>now-Date.parse(e.ts)<=s*1000).length;
+ $("c5").textContent=inWin(300);$("c30").textContent=inWin(1800);
+ $("ccrit").textContent=events.filter(e=>e.severity==="critical"&&now-Date.parse(e.ts)<=1800).length;
+ if(events.length)$("last").textContent=ago(events[events.length-1].ts);
+}
+["fsym","ftype","fwin"].forEach(id=>$(id).onchange=applyFilters);
+$("fstr").oninput=applyFilters;
+setInterval(()=>{ // возраст строк, счётчики, uptime
+ [...document.querySelectorAll("#rows tr")].forEach(tr=>{tr.querySelector(".age").textContent=ago(tr.dataset.ts);});
+ recount();
+ const st=$("up").dataset.start;
+ if(st){const s=(Date.now()-st)/1000|0;$("up").textContent=s<3600?(s/60|0)+"м "+s%60+"с":(s/3600|0)+"ч "+(s%3600/60|0)+"м";}
+},1000);
+
+connect();
+</script>
+</body>
+</html>
