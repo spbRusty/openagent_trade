@@ -130,6 +130,15 @@ def recent_experiments(conn, limit: int = 20) -> list[dict]:
     return [dict(zip(cols, r)) for r in cur.fetchall()]
 
 
+def experiments_for_hypothesis(conn, hypothesis_id: str, limit: int = 50) -> list[dict]:
+    """История прогонов гипотезы (ТЗ §22): контекст для Critic."""
+    cur = conn.execute(
+        "SELECT id, result, created_at FROM experiments WHERE hypothesis_id=? "
+        "ORDER BY created_at DESC LIMIT ?", (hypothesis_id, limit))
+    cols = [d[0] for d in cur.description]
+    return [dict(zip(cols, r)) for r in cur.fetchall()]
+
+
 # --- Strategies ---
 
 def register_strategy(conn, strategy_id: str, name: str, hypothesis_id: str | None = None,

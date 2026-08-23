@@ -47,6 +47,17 @@ def review(result: dict) -> CriticVerdict:
         else:
             required.append("мониторинг стабильности edge в live/paper")
 
+    history = result.get("hypothesis_history") or []
+    rejections = [h for h in history
+                  if h.get("result") in ("NO_CANDIDATE", "CANDIDATE_REJECTED")]
+    if len(rejections) >= 3:
+        risks.append(f"гипотеза уже отклонялась {len(rejections)} раз подряд "
+                     f"(из {len(history)} прогонов в memory)")
+        alternatives.append("успех после серии неудач — возможен межпрогонный перебор: "
+                            "правки условий между запусками до тех пор, пока OOS не «зелёный»")
+        required.append("явно обосновать отличие этого прогона от предыдущих "
+                        "(данные/параметры/метод) или закрыть гипотезу")
+
     n_months = result.get("n_months", 0)
     pos_months = result.get("pos_months", 0)
     if n_months < MIN_MONTHS:

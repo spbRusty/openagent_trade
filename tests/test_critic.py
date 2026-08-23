@@ -18,6 +18,23 @@ def test_clean_result_proceeds():
     assert v.identified_risks == []
 
 
+def test_rejection_streak_flagged():
+    history = [{"id": f"e{i}", "result": "CANDIDATE_REJECTED", "created_at": f"2026-08-2{i}"} 
+               for i in range(4)]
+    v = review(base_result(hypothesis_history=history))
+    assert any("отклонялась" in r for r in v.identified_risks)
+    assert any("межпрогонный перебор" in a for a in v.alternative_explanations)
+    assert any("закрыть гипотезу" in t for t in v.required_tests)
+    assert v.verdict == "NEED_TESTS"
+
+
+def test_short_history_no_streak_flag():
+    v = review(base_result(hypothesis_history=[
+        {"id": "e1", "result": "NO_CANDIDATE", "created_at": "2026-08-20"}]))
+    assert not any("отклонялась" in r for r in v.identified_risks)
+    assert v.verdict == "PROCEED"
+
+
 def test_gate_fail_rejects():
     v = review(base_result(gate_passed=False, gate_fail_reason="oos_t<2"))
     assert v.verdict == "REJECT"

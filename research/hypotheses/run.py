@@ -89,17 +89,17 @@ def _sync_hypotheses_memory(rows: list[dict], experiment_id: str) -> None:
                                           experiment_id)
 
 
-def _history_count(hypothesis_id: str) -> int:
-    """Сколько экспериментов уже связано с гипотезой (контекст для Critic)."""
+def _hypothesis_history(hypothesis_id: str) -> list[dict]:
+    """Последние прогоны этой гипотезы из memory (ТЗ §22): контекст для Critic —
+    какие результаты уже были, чтобы отличить новое исследование от перебора."""
     with db.connect() as conn:
-        exps = db.recent_experiments(conn, limit=10000)
-    return sum(1 for e in exps if e["hypothesis_id"] == hypothesis_id)
+        return db.experiments_for_hypothesis(conn, hypothesis_id)
 
 
 def _critic_result(**kw) -> dict:
-    """Базовый вход Critic: сетка свипа + история экспериментов."""
+    """Базовый вход Critic: сетка свипа + история экспериментов гипотезы."""
     return {"n_trials": len(W_GRID) * len(H_GRID),
-            "history_count": _history_count(kw.get("hypothesis_id", "")), **kw}
+            "hypothesis_history": _hypothesis_history(kw.get("hypothesis_id", "")), **kw}
 
 
 def main():
