@@ -1,0 +1,16 @@
+# paper.yaml — бумажная торговля (ТЗ §15-16).
+execution:
+  interface: paper
+  fee_rate: 0.00075          # taker 0.075% на сторону
+  slippage_pct: 0.0005       # 5 bps проскальзывание
+  latency_ms: 50
+
+paper:
+  initial_balance: 1000.0
+  max_drawdown: 0.20
+  max_position_usd: 5.0
+
+risk:
+  max_exposure_usd: 20.0
+  max_open_positions: 3
+  max_daily_loss: 5.0

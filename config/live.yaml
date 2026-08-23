@@ -1,0 +1,10 @@
+# live.yaml — live-торговля (Phase 10, ТОЛЬКО после human approval).
+# Намеренно пусто: live не включается автоматически.
+live:
+  enabled: false
+
+risk:
+  max_position_usd: null
+  max_portfolio_exposure: null
+  daily_loss_limit: null
+  kill_switch: false

@@ -1,0 +1,34 @@
+# Realtime-монитор (исполнительный контур, paper-only).
+# Параметры подстраиваются с опытом — правки здесь применяются по SIGHUP,
+# рекомендации по тюнингу даёт opencode-хук (см. opencode.interval_min).
+symbols:
+  top_k: 50            # топ-N символов по turnover 24h
+  min_turnover_usd: 20000
+  refresh_hours: 6     # пересчитывать топ-N
+ws:
+  base_url: wss://stream.bybit.com/v5/public/linear
+  depth: 50            # уровней стакана на подписку
+  ping_interval: 20    # сек (Bybit требует ping каждые 20s)
+  reconnect_backoff: [5, 60]   # начальная и макс. пауза при переподключении
+beacons:
+  cooldown_sec: 600    # мин. интервал между маячками одного типа на символ
+  top_levels: 10       # глубина для расчёта дисбаланса/стен
+  imbalance_threshold: 0.9   # |bid-ask|/сумма по топ-уровням -> маячок (тонкий стакан игнор)
+  wall_ratio: 15.0     # размер уровня / медиана топ-уровней -> стена
+  spread_ratio: 5.0    # спред / медианный спред -> расширение
+opencode:
+  interval_min: 60     # как часто вызывать opencode для ревью
+  bin: /home/vlad/.opencode/bin/opencode
+  timeout_sec: 300
+  prompt: "Ты — ревьюер торгового монитора OpenAgent Trade. В контексте: tunables_now (действующие пороги), trade_stats_24h (winrate по типам сигналов wall/imbalance, доля зомби-входов), account (баланс/сделки), health (аптайм и возраст последнего маячка; маячок старше 15 минут — система деградировала, сообщи об этом первым делом в summary). Оцени качество порогов. Если нужны правки, верни СТРОГО один JSON-объект без markdown и пояснений вокруг: {\"summary\": \"кратко по-русски\", \"changes\": [{\"param\": \"gate_wall|gate_imbalance|min_momentum\", \"to\": число, \"reason\": \"почему\"}]}. param только из списка; min_momentum обычно в пределах 0.0003..0.002; gate_wall около 5..15; gate_imbalance около 0.7..0.95. Если менять ничего не нужно — changes: []. Никакого текста кроме JSON."
+notify:
+  min_level: critical  # мгновенные системные события (маячки в ntfy не идут)
+  digest_min: 30       # сводка маячков раз в N минут
+dashboard:
+  port: 8000           # http://127.0.0.1:8000 — веб-панель
+journal:
+  dir: logs/realtime   # jsonl: beacons.jsonl, opencode.jsonl, events.jsonl
+correlation:
+  sample_sec: 5        # период сэмплинга цен (из потока стакана)
+  window_min: 60       # окно rolling-корреляции с флагманом
+  anchor: BTCUSDT      # флагман; corr — справочное поле, НЕ триггер сделок
