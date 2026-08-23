@@ -2,7 +2,7 @@
  "generated_at": "2026-08-21T06:00:01+00:00",
  "source": "bybit_v5_historical",
  "timeframe": "1m",
- "raw_dir": "/home/vlad/Документы/байбит/bybit_2.2/data/klines/linear",
+ "raw_dir": "~/Документы/байбит/bybit_2.2/data/klines/linear",
  "symbols": {
   "0GUSDT": {
    "symbol": "0GUSDT",

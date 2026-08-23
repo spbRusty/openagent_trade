@@ -18,7 +18,7 @@ beacons:
   spread_ratio: 5.0    # спред / медианный спред -> расширение
 opencode:
   interval_min: 60     # как часто вызывать opencode для ревью
-  bin: /home/vlad/.opencode/bin/opencode
+  bin: ~/.opencode/bin/opencode   # ~ раскрывается при загрузке конфига
   timeout_sec: 300
   prompt: "Ты — ревьюер торгового монитора OpenAgent Trade. В контексте: tunables_now (действующие пороги), trade_stats_24h (winrate по типам сигналов wall/imbalance, доля зомби-входов), account (баланс/сделки), health (аптайм и возраст последнего маячка; маячок старше 15 минут — система деградировала, сообщи об этом первым делом в summary). Оцени качество порогов. Если нужны правки, верни СТРОГО один JSON-объект без markdown и пояснений вокруг: {\"summary\": \"кратко по-русски\", \"changes\": [{\"param\": \"gate_wall|gate_imbalance|min_momentum\", \"to\": число, \"reason\": \"почему\"}]}. param только из списка; min_momentum обычно в пределах 0.0003..0.002; gate_wall около 5..15; gate_imbalance около 0.7..0.95. Если менять ничего не нужно — changes: []. Никакого текста кроме JSON."
 notify:

@@ -3,6 +3,8 @@
 Параметры подстраиваются с опытом — правки применяются без рестарта
 (монитор перечитывает YAML по SIGHUP и вызывает reload()).
 """
+import os
+
 import yaml
 from pathlib import Path
 
@@ -15,18 +17,18 @@ _DEFAULTS = {
            "ping_interval": 20, "reconnect_backoff": [5, 60]},
     "beacons": {"cooldown_sec": 60, "top_levels": 10, "imbalance_threshold": 0.7,
                 "wall_ratio": 5.0, "spread_ratio": 3.0},
-    "opencode": {"interval_min": 60, "bin": "/home/vlad/.opencode/bin/opencode",
+    "opencode": {"interval_min": 60, "bin": str(Path.home() / ".opencode/bin/opencode"),
                  "timeout_sec": 300, "prompt": ""},
     "notify": {"min_level": "warning", "digest_min": 30},
     "dashboard": {"port": 8000},
     "journal": {"dir": "logs/realtime"},
     "correlation": {"sample_sec": 5, "window_min": 60, "anchor": "BTCUSDT"},
-    "whale": {"events_path": "/home/vlad/Документы/whale_monitor/events/whale_events.jsonl"},
+    "whale": {"events_path": str(Path.home() / "Документы/whale_monitor/events/whale_events.jsonl")},
     "external": {
         "fng_enabled": True, "fng_poll_min": 10, "fng_significant_change": 7,
-        "fng_state_path": "/home/vlad/Документы/openagent_trade/data/external/fng_state.json",
+        "fng_state_path": str(Path(__file__).resolve().parents[1] / "data/external/fng_state.json"),
         "rss_enabled": True, "rss_poll_min": 5,
-        "rss_seen_db": "/home/vlad/Документы/openagent_trade/data/external/news_seen.sqlite",
+        "rss_seen_db": str(Path(__file__).resolve().parents[1] / "data/external/news_seen.sqlite"),
         "rss_dedup_ttl_hours": 72,
         "rss_sources": {
             "coindesk": "https://www.coindesk.com/arc/outboundfeeds/rss/",
@@ -48,7 +50,7 @@ _DEFAULTS = {
     },
     "autotune": {
         "enabled": True, "interval_min": 720,
-        "state_path": "/home/vlad/Документы/openagent_trade/data/paper/autotune.json",
+        "state_path": str(Path(__file__).resolve().parents[1] / "data/paper/autotune.json"),
         "window_hours": 24,
         "rules": {"min_sample": 15, "winrate_floor": 0.35,
                   "winrate_ceiling": 0.60, "zombie_share_max": 0.50,
@@ -66,6 +68,14 @@ def _deep_merge(base: dict, over: dict) -> dict:
     return out
 
 
+def _expanduser(node):
+    if isinstance(node, str):
+        return os.path.expanduser(node)
+    if isinstance(node, dict):
+        return {k: _expanduser(v) for k, v in node.items()}
+    return node
+
+
 def reload() -> dict:
     """Перечитать YAML и вернуть актуальный конфиг (с дефолтами по умолчанию)."""
     global _cfg
@@ -74,7 +84,7 @@ def reload() -> dict:
             user = yaml.safe_load(f) or {}
     else:
         user = {}
-    _cfg = _deep_merge(_DEFAULTS, user)
+    _cfg = _expanduser(_deep_merge(_DEFAULTS, user))
     return _cfg
 
 

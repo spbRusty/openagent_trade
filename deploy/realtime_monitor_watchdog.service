@@ -1,8 +1,10 @@
 [Unit]
 Description=OpenAgent Trade watchdog: рестарт монитора при молчащих маячках
+# Установка: скопировать в /etc/systemd/system/, заменив __USER__ на своего.
 After=realtime_monitor.service
 
 [Service]
 Type=oneshot
-WorkingDirectory=/home/vlad/Документы/openagent_trade
-ExecStart=/home/vlad/Документы/openagent_trade/.venv/bin/python scripts/watchdog.py
+User=__USER__
+WorkingDirectory=%h/Документы/openagent_trade
+ExecStart=%h/Документы/openagent_trade/.venv/bin/python scripts/watchdog.py

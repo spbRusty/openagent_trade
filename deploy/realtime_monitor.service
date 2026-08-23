@@ -1,16 +1,17 @@
 [Unit]
 Description=OpenAgent Trade realtime monitor (paper-only)
+# Установка: скопировать в /etc/systemd/system/, заменив __USER__ на своего.
 After=network-online.target
 Wants=network-online.target
 
 [Service]
 Type=simple
-User=vlad
-WorkingDirectory=/home/vlad/Документы/openagent_trade
-ExecStart=/home/vlad/Документы/openagent_trade/.venv/bin/python -m infrastructure.realtime.monitor
+User=__USER__
+WorkingDirectory=%h/Документы/openagent_trade
+ExecStart=%h/Документы/openagent_trade/.venv/bin/python -m infrastructure.realtime.monitor
 Restart=always
 RestartSec=10
-Environment=PATH=/home/vlad/.opencode/bin:/usr/local/bin:/usr/bin:/bin
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
 
 [Install]
 WantedBy=multi-user.target

@@ -33,7 +33,7 @@ DATA_FEATURES = DATA_ROOT / "features"
 DATA_METADATA = DATA_ROOT / "metadata"
 # 1m klines (~640 МБ) лежат вне проекта, путь настраивается через .env
 DATA_1M_DIR = Path(os.environ.get(
-    "DATA_1M_DIR", "/home/vlad/Документы/байбит/bybit_2.2/data/klines/linear"))
+    "DATA_1M_DIR", str(Path.home() / "Документы/байбит/bybit_2.2/data/klines/linear")))
 
 # --- Выходы ---
 REPORTS_DIR = ROOT / "research" / "reports"

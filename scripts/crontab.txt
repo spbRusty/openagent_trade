@@ -5,7 +5,7 @@
 # (deploy/realtime_monitor_watchdog.timer, каждые 5 мин), т.к. ему нужен
 # systemctl restart. Статус: systemctl list-timers | grep watchdog
 #   Минут  Час  День  Мес  День-нед  Команда
-30 8 * * * cd /home/vlad/Документы/openagent_trade && .venv/bin/python -m infrastructure.scheduler.jobs --job health_check
-0 9 * * * cd /home/vlad/Документы/openagent_trade && .venv/bin/python -m infrastructure.scheduler.jobs --job data_update
-0 18 * * 1-5 cd /home/vlad/Документы/openagent_trade && .venv/bin/python -m infrastructure.scheduler.jobs --job paper_monitor
-0 19 * * 1-5 cd /home/vlad/Документы/openagent_trade && .venv/bin/python -m infrastructure.scheduler.jobs --job daily_research
+30 8 * * * cd $HOME/Документы/openagent_trade && .venv/bin/python -m infrastructure.scheduler.jobs --job health_check
+0 9 * * * cd $HOME/Документы/openagent_trade && .venv/bin/python -m infrastructure.scheduler.jobs --job data_update
+0 18 * * 1-5 cd $HOME/Документы/openagent_trade && .venv/bin/python -m infrastructure.scheduler.jobs --job paper_monitor
+0 19 * * 1-5 cd $HOME/Документы/openagent_trade && .venv/bin/python -m infrastructure.scheduler.jobs --job daily_research

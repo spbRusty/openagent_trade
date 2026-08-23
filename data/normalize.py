@@ -76,7 +76,7 @@ def run_pipeline(raw_dir: Path, out_dir: Path, meta_dir: Path, limit: int | None
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "source": "bybit_v5_historical",
         "timeframe": "1m",
-        "raw_dir": str(raw_dir),
+        "raw_dir": str(raw_dir).replace(str(Path.home()), "~", 1),
         "symbols": {},
         "failed": {},
     }
