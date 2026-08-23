@@ -92,11 +92,14 @@ class BeaconDetector:
                 continue
             price, size = max(levels, key=lambda x: x[1])
             ratio = size / med
+            notional = price * size
+            if notional < self.cfg.get("min_wall_usd", 0):
+                continue
             if ratio >= self.cfg["wall_ratio"]:
                 out.append({"symbol": book.symbol, "type": "wall",
                             "side": "buy" if side == "bids" else "sell",
                             "strength": round(ratio, 1), "price": price,
-                            "detail": f"price={price} size={size:.0f} med={med:.0f}"})
+                            "detail": f"price={price} size={size:.0f} med={med:.0f} usd={notional:.0f}"})
         return out
 
     def _spread(self, book: BookState, now: float) -> list[dict]:

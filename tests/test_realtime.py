@@ -100,6 +100,37 @@ def test_wall_beacon():
     assert walls and walls[0]["side"] == "buy" and walls[0]["strength"] >= 5.0
 
 
+def test_wall_min_notional_gate():
+    """Карманная стена (notional < min_wall_usd) не проходит, крупная — проходит."""
+    cfg = {"cooldown_sec": 60, "top_levels": 5, "imbalance_threshold": 0.9,
+           "wall_ratio": 5.0, "spread_ratio": 3.0, "min_wall_usd": 5000}
+    det = beacons.BeaconDetector(dict(cfg))
+    found = det.update({"symbol": "X", "type": "snapshot",
+                        "bids": [["0.056", "3544"], ["0.056", "191"], ["0.056", "191"],
+                                 ["0.056", "191"], ["0.056", "191"]],  # $200 как TUTUSDT
+                        "asks": [["0.06", "191"]] * 5})
+    assert not any(b["type"] == "wall" for b in found)
+
+    det2 = beacons.BeaconDetector(dict(cfg))
+    found2 = det2.update({"symbol": "Y", "type": "snapshot",
+                          "bids": [["100.0", "1.0"], ["99.0", "1.0"], ["98.0", "1.0"],
+                                   ["97.0", "1.0"], ["96.0", "500.0"]],   # $48k
+                          "asks": [["101.0", "1.0"]] * 5})
+    walls = [b for b in found2 if b["type"] == "wall"]
+    assert walls and "usd=" in walls[0]["detail"]
+
+
+def test_wall_without_key_keeps_old_behavior():
+    det = beacons.BeaconDetector(
+        {"cooldown_sec": 60, "top_levels": 5, "imbalance_threshold": 0.9,
+         "wall_ratio": 5.0, "spread_ratio": 3.0})   # без min_wall_usd
+    found = det.update({"symbol": "X", "type": "snapshot",
+                        "bids": [["100.0", "1.0"], ["99.0", "1.0"], ["98.0", "1.0"],
+                                 ["97.0", "1.0"], ["96.0", "6.0"]],  # $576 < 5000
+                        "asks": [["101.0", "1.0"]] * 5})
+    assert any(b["type"] == "wall" for b in found)
+
+
 def test_cooldown_suppresses_duplicates():
     det = beacons.BeaconDetector(
         {"cooldown_sec": 3600, "top_levels": 5, "imbalance_threshold": 0.5,

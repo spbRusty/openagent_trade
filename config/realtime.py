@@ -16,7 +16,7 @@ _DEFAULTS = {
     "ws": {"base_url": "wss://stream.bybit.com/v5/public/linear", "depth": 50,
            "ping_interval": 20, "reconnect_backoff": [5, 60]},
     "beacons": {"cooldown_sec": 60, "top_levels": 10, "imbalance_threshold": 0.7,
-                "wall_ratio": 5.0, "spread_ratio": 3.0},
+                "wall_ratio": 5.0, "spread_ratio": 3.0, "min_wall_usd": 5000},
     "opencode": {"interval_min": 60, "bin": str(Path.home() / ".opencode/bin/opencode"),
                  "timeout_sec": 300, "prompt": ""},
     "notify": {"min_level": "warning", "digest_min": 30},
