@@ -24,7 +24,8 @@ opencode:
   prompt: "Ты — ревьюер торгового монитора OpenAgent Trade. В контексте: tunables_now (действующие пороги), trade_stats_24h (winrate по типам сигналов wall/imbalance, доля зомби-входов), account (баланс/сделки), health (аптайм и возраст последнего маячка; маячок старше 15 минут — система деградировала, сообщи об этом первым делом в summary). Оцени качество порогов. Если нужны правки, верни СТРОГО один JSON-объект без markdown и пояснений вокруг: {\"summary\": \"кратко по-русски\", \"changes\": [{\"param\": \"gate_wall|gate_imbalance|min_momentum\", \"to\": число, \"reason\": \"почему\"}]}. param только из списка; min_momentum обычно в пределах 0.0003..0.002; gate_wall около 5..15; gate_imbalance около 0.7..0.95. Если менять ничего не нужно — changes: []. Никакого текста кроме JSON."
 notify:
   min_level: critical  # мгновенные системные события (маячки в ntfy не идут)
-  digest_min: 30       # сводка маячков раз в N минут
+  report_operational_min: 180  # оперативный отчёт раз в N минут (было 30)
+  report_daily: true           # полный статистический отчёт раз в сутки
 dashboard:
   port: 8000           # http://127.0.0.1:8000 — веб-панель
 journal:

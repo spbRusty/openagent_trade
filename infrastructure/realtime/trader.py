@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 from config.paper import (ACCOUNT_PATH, FEE_RATE, INITIAL_BALANCE, LATENCY_MS,
                           MAX_DAILY_LOSS, MAX_DRAWDOWN, MAX_EXPOSURE_USD,
                           MAX_OPEN_POSITIONS, MAX_POSITION_USD, SLIPPAGE_PCT)
+from infrastructure.notifications import notify
 from trading.execution.paper import PaperExecutor
 from trading.risk.manager import RiskManager
 
@@ -58,6 +59,10 @@ class BeaconTrader:
         self.risk.halt()
         self.halt_path.parent.mkdir(parents=True, exist_ok=True)
         self.halt_path.write_text(datetime.now(timezone.utc).strftime("%Y-%m-%d"))
+        notify("CRITICAL", "RISK_HALT",
+               {"reason": "kill-switch", "positions": len(self.ex.positions)},
+               text=f"🛑 Торговля остановлена до конца дня (kill-switch), "
+                    f"баланс {self.ex.get_balance().cash:.2f}")
 
     # --- панель ---
     def summary(self) -> dict:
@@ -114,6 +119,8 @@ class BeaconTrader:
         if rollover:
             if self.risk.killed:
                 self.risk.resume()
+                notify("INFO", "RISK_RESUME", {},
+                       text="✅ Новый день: торговля возобновлена")
             if self.halt_path.exists():
                 self.halt_path.unlink()   # вчерашний хальт больше не действует
 

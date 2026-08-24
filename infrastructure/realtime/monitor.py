@@ -76,16 +76,71 @@ def _digest_text(pending: list[dict], minutes: int) -> str:
     return "\n".join(lines)
 
 
-async def _digest_loop(pending: list) -> None:
+async def _reports_loop(pending: list, paper, journal_dir: Path,
+                        op_interval_s: float | None = None) -> None:
+    """Редкие отчёты вместо регулярного пуша счётчика маячков.
+    Статистика и так пишется в journal (beacons.jsonl) — здесь только
+    operational report раз в 2–4 ч и суточный статистический отчёт.
+    op_interval_s — шов для тестов (переопределяет интервал из конфига)."""
+    last_day = datetime.now(timezone.utc).date()
+    interval = op_interval_s or max(5, int(get()["notify"].get(
+        "report_operational_min", 180))) * 60
+    next_op = time.monotonic() + interval
     while True:
-        minutes = max(1, get()["notify"].get("digest_min", 30))
-        await asyncio.sleep(minutes * 60)
-        if not pending:
-            continue
-        level = "WARNING" if any(b.get("severity") == "critical" for b in pending) else "INFO"
-        notify(level, f"Маячки: {len(pending)} за {minutes} мин", None,
-               _digest_text(pending, minutes))
-        pending.clear()
+        # спим до ближайшего события, но не дольше 30с (гранулярность тика)
+        await asyncio.sleep(max(0.05, min(30, next_op - time.monotonic())))
+        try:
+            now = datetime.now(timezone.utc)
+            if now.date() != last_day:            # новые сутки — полный отчёт
+                last_day = now.date()
+                notify("INFO", "Дневной отчёт", None,
+                       _daily_report(journal_dir, paper))
+            if pending and time.monotonic() >= next_op:
+                mins = max(1, int((time.monotonic() - (next_op - max(5, int(get()["notify"].get("report_operational_min", 180))) * 60)) // 60))
+                level = "WARNING" if any(b.get("severity") == "critical"
+                                         for b in pending) else "INFO"
+                notify(level, f"Оперативный отчёт: маячков {len(pending)}",
+                       None, _digest_text(pending, mins))
+                pending.clear()
+                next_op = time.monotonic() + interval
+        except Exception:
+            logger.exception("reports loop error")
+
+
+def _daily_report(journal_dir: Path, paper) -> str:
+    """Полный статистический отчёт за 24ч из журнала (данные не из пуши)."""
+    import json as _json
+    cutoff = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat(timespec="seconds")
+    total, types, syms = 0, {}, {}
+    path = Path(journal_dir) / "beacons.jsonl"
+    if path.exists():
+        for line in path.read_text(errors="replace").splitlines()[-50000:]:
+            try:
+                r = _json.loads(line)
+            except ValueError:
+                continue
+            if not isinstance(r, dict):
+                continue
+            if r.get("ts", "") < cutoff:
+                continue
+            total += 1
+            types[r.get("type", "?")] = types.get(r.get("type", "?"), 0) + 1
+            syms[r.get("symbol", "?")] = syms.get(r.get("symbol", "?"), 0) + 1
+    top = ", ".join(f"{k}×{v}" for k, v in
+                    sorted(syms.items(), key=lambda kv: -kv[1])[:8])
+    lines = [f"Маячков за 24ч: {total}",
+             "Типы: " + (", ".join(f"{k}={v}" for k, v in sorted(types.items())) or "—"),
+             "Топ символы: " + (top or "—")]
+    if paper:
+        sm = paper.summary()
+        wr = sm.get("winrate")
+        lines.append(f"Paper: сделок {sm.get('trades')}, "
+                     f"winrate {wr:.0%}" if isinstance(wr, float) else
+                     f"Paper: сделок {sm.get('trades')}, winrate —")
+        lines.append(f"PnL за день: {sm.get('day_pnl', 0):+.4f}, "
+                     f"баланс {sm.get('balance'):.2f}"
+                     + (", ХАЛЬТ" if sm.get("killed") else ""))
+    return "\n".join(lines)
 
 
 async def _corr_loop(state: dict) -> None:
@@ -257,7 +312,9 @@ async def amain() -> None:
     ws = BybitWS(symbols, cfg["ws"]["depth"], cfg["ws"]["base_url"],
                  cfg["ws"]["ping_interval"], tuple(cfg["ws"]["reconnect_backoff"]), queue)
     await asyncio.gather(ws.run(), _handle(queue, state, journal, recent, pending),
-                         _digest_loop(pending), dash.run(cfg["dashboard"]["port"]),
+                         _reports_loop(pending, paper,
+                                       ROOT / cfg["journal"]["dir"]),
+                         dash.run(cfg["dashboard"]["port"]),
                          _opencode_loop(journal, recent, state),
                          _corr_loop(state),
                          whale_loop(cfg["whale"]["events_path"], recent, dash.publish),
