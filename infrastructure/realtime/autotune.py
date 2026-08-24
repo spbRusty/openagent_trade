@@ -147,6 +147,15 @@ def tune_once(trader: T.BeaconTrader, cfg: dict) -> list[str]:
         saved["last_applied"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
         saved["changes_log"] = (saved.get("changes_log", []) + changes)[-50:]
         _save(base_path, saved)
+    stats_view = {k: v for k, v in st["types"].items()}
+    stats_view.update({"closed": st["closed"], "zombies": st["zombies"]})
+    if changes:
+        record_applied(str(base_path), "autotune", changes, changes, stats_view)
+    else:
+        # без правок — просто обновляем статистику текущего эксперимента
+        exp = ensure_experiment(saved)
+        exp["last_stats"] = stats_view
+        _save(base_path, saved)
     logger.info("%s | %s", summary, "; ".join(changes) or "правок нет")
     changes.append(summary)                       # сводка идёт последним событием
     return changes
@@ -188,6 +197,74 @@ def apply_saved(state_path: str) -> int:
     if mom:
         T.MIN_MOMENTUM_PCT = float(mom)
         n += 1
-    logger.info("загружен тюнинг: %s, momentum=%s",
-                T.ENTRY_MIN_STRENGTH, T.MIN_MOMENTUM_PCT)
+    ensure_experiment(saved)                      # рестарт = тот же эксперимент
+    _save(Path(state_path), saved)
+    logger.info("восстановлен эксперимент %s (is_experiment=%s): %s",
+                saved["experiment"]["id"], saved["experiment"]["is_experiment"],
+                T.ENTRY_MIN_STRENGTH)
     return n
+
+
+# --- граница paper/research: учёт экспериментов ---
+
+import secrets
+
+
+def _new_experiment_id() -> str:
+    ts = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+    return f"exp-{ts}-{secrets.token_hex(2)}"
+
+
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+def ensure_experiment(state: dict, base: dict | None = None) -> dict:
+    """Текущий эксперимент создаётся один раз и переживает рестарты;
+    рестарт восстанавливает его КАК ЭКСПЕРИМЕНТ, а не новой базой."""
+    exp = state.get("experiment")
+    if not exp or not exp.get("id"):
+        b = base or _base_bounds()
+        exp = {"id": _new_experiment_id(),
+               "started_at": _now_iso(),
+               "is_experiment": True,
+               "base_params": b,
+               "changes": [],
+               "sources": [],
+               "last_stats": None}
+        state["experiment"] = exp
+    elif base is not None and "base_params" not in exp:
+        exp["base_params"] = base
+    return exp
+
+
+def record_applied(state_path: str, source: str, reasons: list,
+                   applied: list, stats: dict | None = None) -> str:
+    """Каждый набор применённых правок = запись с provenance в experiments.jsonl."""
+    sp = Path(state_path)
+    state = _load(sp)
+    exp = ensure_experiment(state)
+    batch = [{"param": c.split(":")[0].strip(), "detail": c} for c in applied]
+    exp["changes"].extend(batch)
+    exp["sources"] = sorted(set(exp["sources"]) | {source})[-5:]
+    exp["last_reason"] = "; ".join(reasons)[:200]
+    exp["applied_at"] = _now_iso()
+    if stats is not None:
+        exp["last_stats"] = stats
+    state["experiment"] = exp
+    _save(sp, state)
+    jl = sp.parent / "experiments.jsonl"
+    jl.parent.mkdir(parents=True, exist_ok=True)
+    with jl.open("a") as f:
+        f.write(json.dumps({"experiment_id": exp["id"],
+                            "recorded_at": exp["applied_at"],
+                            "source": source,
+                            "params_version": len(exp["changes"]),
+                            "changes": batch,
+                            "reasons": reasons,
+                            # снимок фактических живых параметров на момент записи
+                            "params_snapshot": state.get("current") or {
+                                "ENTRY_MIN_STRENGTH": dict(T.ENTRY_MIN_STRENGTH),
+                                "MIN_MOMENTUM_PCT": T.MIN_MOMENTUM_PCT},
+                            "stats_after": stats}, ensure_ascii=False) + "\n")
+    return exp["id"]

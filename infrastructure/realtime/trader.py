@@ -21,7 +21,15 @@ ENTRY_MIN_STRENGTH = {"wall": 8.0, "imbalance": 0.85}   # только critical-
 REENTRY_COOLDOWN_SEC = 600              # повтор по символу не раньше 10 мин («второй подход критично»)
 GLOBAL_ENTRY_GAP_SEC = 180              # пауза между любыми входами («первый импульс ≤ 2 раз в час»)
 EARLY_FAIL_SEC = 120                    # через 2 мин решаем: импульс или выход
-MIN_MOMENTUM_PCT = 0.0005               # +5 б.п. в нашу сторону — минимальный импульс
+MIN_MOMENTUM_PCT = 0.0005
+# BASE_STRATEGY_PARAMS — зафиксированная базовая стратегия. Меняется ТОЛЬКО
+# руками через коммит. Autotune/advisor имеют право менять только живые
+# константы выше (слой paper-экспериментов); путь «эксперимент → новая база»
+# автоматом запрещён: только через research (Paper → Result → Research).
+BASE_STRATEGY_PARAMS = {
+    "ENTRY_MIN_STRENGTH": dict(ENTRY_MIN_STRENGTH),
+    "MIN_MOMENTUM_PCT": MIN_MOMENTUM_PCT,
+}               # +5 б.п. в нашу сторону — минимальный импульс
 
 
 class BeaconTrader:

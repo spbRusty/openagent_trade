@@ -90,6 +90,11 @@ def apply_verdict(verdict: dict, state_path: str, publish=None) -> tuple[list, s
     saved["last_advisor"] = datetime_stamp()
     saved["changes_log"] = (saved.get("changes_log", []) + applied)[-50:]
     _save(state_path, saved)
+    if applied:   # provenance: тот же реестр экспериментов, что у автотюнера
+        from infrastructure.realtime.autotune import record_applied
+        record_applied(str(state_path), "advisor",
+                       [str(verdict.get("summary", ""))[:120]],
+                       applied, saved.get("experiment", {}).get("last_stats"))
     return applied, str(verdict.get("summary", ""))[:160]
 
 
