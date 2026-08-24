@@ -25,16 +25,18 @@ def _restore(keep_gates, keep_mom):
 
 
 def test_base_params_immutable_by_autotune(tmp_path):
-    """Autotune меняет живые параметры, но BASE_STRATEGY_PARAMS нетронут."""
+    """Autotune-стиль правок живых констант не затрагивает BASE_STRATEGY_PARAMS:
+    база остаётся замороженной и ОТЛИЧАЕТСЯ от текущих значений."""
     state, kg, km = _fresh(tmp_path)
     try:
         base_before = json.dumps(T.BASE_STRATEGY_PARAMS, sort_keys=True)
-        T.ENTRY_MIN_STRENGTH["wall"] = 9.5          # «экспериментальная» правка
-        T.MIN_MOMENTUM_PCT = 0.0007
+        # заведомо иные значения (не равные базе) — как делает автотюнер
+        T.ENTRY_MIN_STRENGTH["wall"] = T.BASE_STRATEGY_PARAMS["ENTRY_MIN_STRENGTH"]["wall"] + 1.5
+        T.MIN_MOMENTUM_PCT = T.BASE_STRATEGY_PARAMS["MIN_MOMENTUM_PCT"] * 1.4
         assert json.dumps(T.BASE_STRATEGY_PARAMS, sort_keys=True) == base_before
-        # база равна исходным константам модуля, а не текущим значениям
-        assert T.BASE_STRATEGY_PARAMS["MIN_MOMENTUM_PCT"] != T.MIN_MOMENTUM_PCT \
-            or True                                  # совпадение не запрещено — важна фиксация
+        assert T.BASE_STRATEGY_PARAMS["ENTRY_MIN_STRENGTH"]["wall"] \
+            != T.ENTRY_MIN_STRENGTH["wall"]          # база != эксперимент
+        assert T.BASE_STRATEGY_PARAMS["MIN_MOMENTUM_PCT"] != T.MIN_MOMENTUM_PCT
     finally:
         _restore(kg, km)
 
@@ -83,10 +85,12 @@ def test_restart_restores_experiment_not_baseline(tmp_path):
         saved["current"] = {"ENTRY_MIN_STRENGTH": {"wall": 8.6, "imbalance": 0.85},
                             "MIN_MOMENTUM_PCT": 0.0005}
         open(state, "w").write(json.dumps(saved))
+        base_wall = T.BASE_STRATEGY_PARAMS["ENTRY_MIN_STRENGTH"]["wall"]
         n = A.apply_saved(state)
         assert n >= 2 and T.ENTRY_MIN_STRENGTH["wall"] == 8.6
-        # база НЕ стала экспериментальной
-        assert T.BASE_STRATEGY_PARAMS["ENTRY_MIN_STRENGTH"]["wall"] != 8.6 or True
+        # рестарт восстановил ЭКСПЕРИМЕНТ; база не сдвинулась ни на бит
+        assert T.BASE_STRATEGY_PARAMS["ENTRY_MIN_STRENGTH"]["wall"] == base_wall
+        assert T.ENTRY_MIN_STRENGTH["wall"] != base_wall or base_wall == 8.6
         st = json.loads(open(state).read())["experiment"]
         assert st["is_experiment"] is True and st["id"].startswith("exp-")
     finally:
