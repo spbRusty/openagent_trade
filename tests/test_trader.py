@@ -1,4 +1,5 @@
 """Контрактные тесты BeaconTrader: маячок → RiskManager → PaperExecutor."""
+import json
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -317,3 +318,61 @@ def test_summary_shape(tmp_path):
     assert s["balance"] == 1000.0 and s["equity"] == 1000.0
     assert s["trades"] == 0 and s["winrate"] is None
     assert s["open"] == 0 and s["day_pnl"] == 0.0 and not s["killed"]
+
+
+def test_short_flat_zombie_exits_now(tmp_path):
+    """Регрессия: у шорта entry занижен слиппеджем, флэт казался «+5 б.п.»
+    и жил до таймаута. Теперь слиппедж вычтен — флэтовый шорт выходит."""
+    t = mk(tmp_path)
+    t.on_beacon(beacon(sym="S", side="sell", price=100))   # шорт, fill ≈ 99.95
+    assert "S" in t.ex.positions
+    t.ex.mark_price("S", 100.0)                            # рынок на месте
+    pos = t.ex.positions["S"]
+    pos.opened_at = (datetime.now(timezone.utc)
+                     - timedelta(seconds=130)).isoformat(timespec="seconds")
+    t.on_beacon(beacon(sym="Q", price=50))
+    assert t.ex.get_position("S") is None
+
+
+def test_tuned_values_survive_restart(tmp_path):
+    import infrastructure.realtime.autotune as A
+    from infrastructure.realtime import trader as TT
+    keep = dict(TT.ENTRY_MIN_STRENGTH); keep_m = TT.MIN_MOMENTUM_PCT
+    try:
+        state = tmp_path / "at.json"
+        state.write_text(json.dumps({"current": {
+            "ENTRY_MIN_STRENGTH": {"wall": 9.9, "imbalance": 0.88},
+            "MIN_MOMENTUM_PCT": 0.00065}}))
+        n = A.apply_saved(str(state))
+        assert n == 3 and TT.ENTRY_MIN_STRENGTH["wall"] == 9.9 \
+            and TT.MIN_MOMENTUM_PCT == 0.00065
+    finally:
+        TT.ENTRY_MIN_STRENGTH.clear(); TT.ENTRY_MIN_STRENGTH.update(keep)
+        TT.MIN_MOMENTUM_PCT = keep_m
+
+
+def test_maintenance_loop_closes_without_beacons():
+    """Регрессия метронома: позиция должна закрываться по часам, даже если
+    маячки по символу не приходят вовсе."""
+    import asyncio
+    from infrastructure.realtime.monitor import _maintenance_loop
+
+    async def run():
+        t = mk(tmp_path_factory.mktemp("mnt"))
+        t.on_beacon(beacon(sym="M", price=100))
+        t.ex.mark_price("M", 100.0)              # флэт
+        task = asyncio.create_task(_maintenance_loop(t, interval_s=0.05))
+        pos = t.ex.positions["M"]
+        pos.opened_at = (datetime.now(timezone.utc)
+                         - timedelta(seconds=130)).isoformat(timespec="seconds")
+        await asyncio.sleep(0.2)
+        task.cancel()
+        return t.ex.get_position("M")
+
+    assert asyncio.run(run()) is None
+
+
+from pathlib import Path as _P
+import tempfile as _tempfile
+tmp_path_factory = type("F", (), {"mktemp": staticmethod(
+    lambda name: _P(_tempfile.mkdtemp(prefix=name)))})()

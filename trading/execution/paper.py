@@ -98,10 +98,15 @@ class PaperExecutor(ExecutionInterface):
             wins = sum(1 for t in self.trades if t["pnl"] > 0)
             wr = 100 * wins / len(self.trades)
             icon = "🟢" if pnl >= 0 else "🔴"
+            held_sec = max(0, (datetime.now(timezone.utc)
+                               - datetime.fromisoformat(pos.opened_at)).total_seconds())
+            held = (f"{held_sec / 60:.0f} мин" if held_sec < 3600
+                    else f"{held_sec / 3600:.0f} ч {held_sec % 3600 // 60:.0f} мин")
             notify("TRADE", "TRADE_CLOSED",
                    {"symbol": symbol, "pnl": round(pnl, 6),
+                    "held_min": round(held_sec / 60),
                     "trades": len(self.trades), "winrate": round(wr, 1)},
-                   text=f"{icon} закрыт {symbol}: pnl {pnl:+.4f} | "
+                   text=f"{icon} закрыт {symbol}: pnl {pnl:+.4f}, держали {held} | "
                         f"всего сделок {len(self.trades)}, винрейт {wr:.0f}% | "
                         f"баланс {self.cash:.2f}")
 

@@ -27,6 +27,7 @@ def test_notify_only_on_close(monkeypatch, tmp_path):
     payload = args[2]
     assert payload["pnl"] > 0 and payload["trades"] == 1 and payload["winrate"] == 100.0
     assert "🟢" in kwargs["text"] and "баланс" in kwargs["text"]  # маркер и итоговый баланс
+    assert "держали" in kwargs["text"]       # длительность позиции в сообщении
 
 
 def test_buy_sell_roundtrip(tmp_path):

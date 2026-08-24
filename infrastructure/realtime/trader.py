@@ -165,6 +165,9 @@ class BeaconTrader:
             mark = self.ex.last_price.get(s)
             if age >= EARLY_FAIL_SEC and mark is not None:
                 sign = 1 if p.qty > 0 else -1
-                move = (mark - p.entry_price) / p.entry_price * sign
+                # слиппедж смещает entry: у лонга он завышен, у шорта занижен,
+                # иначе флэтовый шорт выглядит как «+5 б.п.» и живёт до таймаута
+                slip_adj = self.ex.slippage_pct * sign
+                move = (mark - p.entry_price) / p.entry_price * sign - slip_adj
                 if move < MIN_MOMENTUM_PCT:   # минус или флэт — зомби, выходим
                     self._close(s)

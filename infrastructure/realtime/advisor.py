@@ -85,6 +85,8 @@ def apply_verdict(verdict: dict, state_path: str, publish=None) -> tuple[list, s
         line = f"{name}: {cur}→{clamped} ({reason})" + \
                (" [кламп]" if clamped != to else "")
         applied.append(line)
+    saved["current"] = {"ENTRY_MIN_STRENGTH": dict(T.ENTRY_MIN_STRENGTH),
+                        "MIN_MOMENTUM_PCT": T.MIN_MOMENTUM_PCT}
     saved["last_advisor"] = datetime_stamp()
     saved["changes_log"] = (saved.get("changes_log", []) + applied)[-50:]
     _save(state_path, saved)
@@ -97,12 +99,31 @@ def datetime_stamp() -> str:
 
 
 async def ask_opencode(bin_path: str, prompt: str, timeout_sec: int) -> str | None:
+    """Вывод — во временный ФАЙЛ, не в пайп: opencode плодит демонов, которые
+    наследуют и держат пайпы (communicate() виснет до таймаута). Своя группа
+    процессов: по таймауту убиваем всё дерево killpg, а не только родителя."""
+    import os
+    import signal
+    import tempfile
     try:
-        proc = await asyncio.create_subprocess_exec(
-            bin_path, "run", prompt,
-            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT)
-        out, _ = await asyncio.wait_for(proc.communicate(), timeout=timeout_sec)
-        return out.decode(errors="replace")
-    except (asyncio.TimeoutError, OSError) as e:
+        with tempfile.TemporaryFile() as tf:
+            proc = await asyncio.create_subprocess_exec(
+                bin_path, "run", prompt,
+                stdin=asyncio.subprocess.DEVNULL,
+                stdout=tf, stderr=asyncio.subprocess.STDOUT,
+                start_new_session=True)
+            try:
+                await asyncio.wait_for(proc.wait(), timeout_sec)
+            except asyncio.TimeoutError:
+                try:
+                    os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+                await proc.wait()
+                logger.warning("opencode timeout %ss — дерево убито", timeout_sec)
+                return None
+            tf.seek(0)
+            return tf.read().decode(errors="replace")
+    except OSError as e:
         logger.warning("opencode недоступен: %s", e)
         return None

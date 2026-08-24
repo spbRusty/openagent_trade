@@ -20,7 +20,7 @@ from pathlib import Path
 from config.realtime import get, reload as reload_cfg
 from config.settings import ROOT
 from infrastructure.notifications import notify
-from infrastructure.realtime.autotune import tune_loop
+from infrastructure.realtime.autotune import apply_saved, tune_loop
 from infrastructure.realtime.advisor import (ask_opencode, build_context,
                                               apply_verdict, extract_verdict)
 from infrastructure.realtime.beacons import BeaconDetector
@@ -124,6 +124,18 @@ async def _handle(queue: asyncio.Queue, state: dict, journal: Journal,
         if book and book.bids and book.asks:
             state["paper"].mark(update["symbol"],
                                 round((max(book.bids) + min(book.asks)) / 2, 10))
+
+
+async def _maintenance_loop(paper, interval_s: int = 15) -> None:
+    """Таймауты и kill-switch по ЧАСАМ, а не по приходу маячков: между
+    сигналами бывают паузы в минуты — без этого цикла ранний фейл не стреляет."""
+    while True:
+        await asyncio.sleep(interval_s)
+        try:
+            paper._timeouts()
+            paper._sync_kill()
+        except Exception:
+            logger.exception("maintenance error")
 
 
 async def _opencode_loop(journal: Journal, recent: deque, state: dict) -> None:
@@ -239,6 +251,7 @@ async def amain() -> None:
     logger.info("monitor started: %d symbols", len(symbols))
     _notify_if("INFO", "MONITOR_STARTED", {"symbols": len(symbols)})
 
+    apply_saved(str(ROOT / "data/paper/autotune.json"))
     queue: asyncio.Queue = asyncio.Queue(maxsize=5000)
     pending: list = []
     ws = BybitWS(symbols, cfg["ws"]["depth"], cfg["ws"]["base_url"],
@@ -251,6 +264,7 @@ async def amain() -> None:
                          *([fng_loop(cfg["external"], recent, dash.publish)] if cfg["external"]["fng_enabled"] else []),
                          *([rss_loop(cfg["external"], recent, dash.publish)] if cfg["external"]["rss_enabled"] else []),
                          *([tune_loop(paper, recent, dash.publish, cfg["autotune"])] if cfg["autotune"]["enabled"] else []),
+                         _maintenance_loop(paper),
                          _refresh_loop(journal, {"symbols": symbols}))
 
 

@@ -137,6 +137,8 @@ def tune_once(trader: T.BeaconTrader, cfg: dict) -> list[str]:
                                    f"{thr}→{nxt:.2f}")
                     strg[btype] = nxt
 
+    saved["current"] = {"ENTRY_MIN_STRENGTH": dict(T.ENTRY_MIN_STRENGTH),
+                        "MIN_MOMENTUM_PCT": T.MIN_MOMENTUM_PCT}
     summary = (f"автотюнинг: сделок {st['closed']} (зомби {st['zombies']}), "
                f"входов {st['entries']}; "
                + "; ".join(f"{k}={v['wins']}/{v['n']}"
@@ -167,3 +169,25 @@ async def tune_loop(trader: T.BeaconTrader, recent: list, publish, cfg: dict) ->
         except Exception:
             logger.exception("tune_loop error")
             await asyncio.sleep(300)
+
+
+def apply_saved(state_path: str) -> int:
+    """Загрузить настроенные пороги при старте процесса (иначе рестарт сбрасывает
+    тюнинг на дефолты). Возвращает число применённых значений."""
+    saved = _load(Path(state_path))
+    cur = saved.get("current")
+    if not cur:
+        return 0
+    n = 0
+    gates = cur.get("ENTRY_MIN_STRENGTH", {})
+    for k, v in gates.items():
+        if k in T.ENTRY_MIN_STRENGTH:
+            T.ENTRY_MIN_STRENGTH[k] = float(v)
+            n += 1
+    mom = cur.get("MIN_MOMENTUM_PCT")
+    if mom:
+        T.MIN_MOMENTUM_PCT = float(mom)
+        n += 1
+    logger.info("загружен тюнинг: %s, momentum=%s",
+                T.ENTRY_MIN_STRENGTH, T.MIN_MOMENTUM_PCT)
+    return n
